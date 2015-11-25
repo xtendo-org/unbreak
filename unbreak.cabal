@@ -1,0 +1,24 @@
+name:               unbreak
+version:            0.0.1
+synopsis:           Secure and remote editing of documents with unstable connection
+license:            AGPL-3
+license-file:       LICENSE
+author:             Kinoru
+copyright:          Copyright (C) 2015 Kinoru
+category:           Web
+build-type:         Simple
+cabal-version:      >=1.18
+
+executable unbreak
+    extensions:       OverloadedStrings
+    main-is:          Main.hs
+    build-depends:
+        aeson >= 0.9,
+        aeson-pretty >= 0.7,
+        bytestring >= 0.10,
+        cmdargs >= 0.10,
+        text >= 1.2,
+        base >=4.8 && <4.9
+    hs-source-dirs:   src
+    ghc-options: -Wall -O2 -threaded -static -optl-pthread -optl-static
+    default-language: Haskell2010
