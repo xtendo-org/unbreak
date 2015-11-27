@@ -18,6 +18,7 @@ executable unbreak
         bytestring >= 0.10,
         cmdargs >= 0.10,
         text >= 1.2,
+        unix >= 2.7,
         base >=4.8 && <4.9
     hs-source-dirs:   src
     ghc-options: -Wall -O2 -threaded -static -optl-pthread -optl-static
