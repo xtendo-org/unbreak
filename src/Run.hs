@@ -21,14 +21,13 @@ getHomePath = getEnv "HOME" >>= \ m -> case m of
 
 runInit :: IO ()
 runInit = do
-    home <- getHomePath
-    let confPath = (home ++ "/.unbreak.json")
+    confPath <- (++ "/.unbreak.json") <$> getHomePath
     existence <- fileExist confPath
     if existence
     then B.putStrLn "There is already the ~/.unbreak.json file.\
         \ If you are willing to create the default config file,\
         \ please delete ~/.unbreak.json and retry.\n\
-        \ Warning: the \"name\" part of the config may be required to open\
+        \Warning: the \"name\" part of the config may be required to open\
         \ the documents you have created in the past."
     else do
         B.writeFile (B.unpack confPath) (enc initConf)
