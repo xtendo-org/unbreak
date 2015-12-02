@@ -41,5 +41,5 @@ instance EncodeJSON Conf where
 initConf :: Conf
 initConf = Conf
     "Your Name (or anything correctly memorable)"
-    "username@example.com:path/to/docdir"
+    "username@example.com:path/to/docdir/"
     "vim"

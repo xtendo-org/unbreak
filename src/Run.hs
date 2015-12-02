@@ -7,8 +7,10 @@ import Prelude hiding ((++))
 import Control.Exception
 import System.IO
 import System.IO.Error
+import System.Exit
 
 import System.Posix.ByteString
+import System.Process
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
@@ -54,18 +56,43 @@ session Conf{..} = catchIOError
     const $ do -- or if that fails, create a new session
         shelfPath <- mkdtemp "/dev/shm/unbreak-"
         B.writeFile (B.unpack sessionPath) shelfPath
-        B.putStrLn "Type password: "
+        B.putStr "Type password: "
         password <- withNoEcho B.getLine
         let master = hash password (T.encodeUtf8 name)
         B.writeFile (B.unpack $ shelfPath ++ "/master") master
+        createDirectory (shelfPath ++ "/file") 0o700
         return shelfPath
 
 runOpen :: Conf -> ByteString -> IO ()
 runOpen conf@Conf{..} filename = do
     shelfPath <- session conf
-    print shelfPath
+    let
+        filePath = mconcat [shelfPath, "/file/", filename]
+        remoteFilePath = mconcat [T.encodeUtf8 remote, filename]
+    -- copy the remote file to the shelf
+    run (mconcat ["scp ", remoteFilePath, " ", filePath]) $
+        \ n -> B.putStrLn $ mconcat
+            ["Download failed. (", B.pack $ show n, ")\nOpening a new file."]
+    -- edit the file in the shelf
+    run (mconcat [T.encodeUtf8 editor, " ", filePath]) $ const $ do
+        B.putStrLn "Editor exited abnormally. Editing cancelled."
+        exitFailure
+    -- upload the file from the shelf to the remote
+    run (mconcat ["scp ", filePath, " ", remoteFilePath]) $
+        \ n -> B.putStrLn $ mconcat
+            ["Upload failed. (", B.pack $ show n, ")"]
+    B.putStrLn "Done."
 
 withNoEcho :: IO a -> IO a
 withNoEcho action = do
     old <- hGetEcho stdin
     bracket_ (hSetEcho stdin False) (hSetEcho stdin old) action
+
+run :: ByteString -> (Int -> IO ()) -> IO ()
+run cmd failHandler = do
+    -- TODO: Avoid String <-> ByteString circus
+    (_, _, _, p) <- createProcess (shell $ B.unpack cmd)
+    c <- waitForProcess p
+    case c of
+        ExitFailure n -> failHandler n
+        _ -> return ()
