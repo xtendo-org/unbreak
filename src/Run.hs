@@ -63,8 +63,27 @@ session Conf{..} = catchIOError
         createDirectory (shelfPath ++ "/file") 0o700
         return shelfPath
 
-runOpen :: Conf -> ByteString -> IO ()
-runOpen conf@Conf{..} filename = do
+runOpen :: ByteString -> IO ()
+runOpen filename = getConf f (`editRemoteFile` filename)
+  where
+    f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
+
+getConf :: (ByteString -> IO a) -> (Conf -> IO a) -> IO a
+getConf failure success = do
+    confPath <- (++ "/.unbreak.json") <$> getHomePath
+    existence <- fileExist confPath
+    if existence
+    then do
+        rawConf <- B.readFile (B.unpack confPath)
+        case dec rawConf of
+            Left errmsg -> failure $ B.pack errmsg
+            Right conf -> success conf
+    else do
+        B.putStrLn "You may need to run unbreak (without arguments) first."
+        failure "~/.unbreak.json does not exist"
+
+editRemoteFile :: Conf -> ByteString -> IO ()
+editRemoteFile conf@Conf{..} filename = do
     shelfPath <- session conf
     let
         filePath = mconcat [shelfPath, "/file/", filename]

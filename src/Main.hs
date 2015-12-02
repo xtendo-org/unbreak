@@ -27,5 +27,4 @@ main = do
     args <- processArgs arguments
     case args of
         CmdHelp     -> print $ helpText [] HelpFormatDefault arguments
-        CmdOpen b   -> if B.length b == 0 then runInit else
-            print $ mconcat ["I should open ", b] -- FIXME
+        CmdOpen b   -> if B.length b == 0 then runInit else runOpen b
