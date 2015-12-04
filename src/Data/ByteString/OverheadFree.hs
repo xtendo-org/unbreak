@@ -1,12 +1,13 @@
-module Data.ByteString.IO
+module Data.ByteString.OverheadFree
     ( readFile
     , writeFile
+    , module Data.ByteString.Char8
     ) where
 
 import Prelude hiding (readFile, writeFile)
 import Control.Exception (bracket)
 import System.IO (hClose)
-import Data.ByteString (ByteString)
+import Data.ByteString.Char8 hiding (readFile, writeFile)
 import qualified Data.ByteString as B
 import System.Posix.ByteString
 
