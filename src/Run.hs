@@ -13,11 +13,10 @@ import System.Posix.ByteString
 import System.Process
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.OverheadFree as B
 import qualified Data.Text.Encoding as T
 
-import Crypto.KDF.Scrypt
-
+import Crypto
 import Format
 
 (++) :: Monoid m => m -> m -> m
@@ -31,9 +30,6 @@ getHomePath = getEnv "HOME" >>= \ m -> case m of
     Nothing -> error "$HOME not found"
     Just h -> return h
 
-hash :: ByteString -> ByteString -> ByteString
-hash = generate (Parameters 128 8 1 64)
-
 runInit :: IO ()
 runInit = do
     confPath <- (++ "/.unbreak.json") <$> getHomePath
@@ -45,23 +41,29 @@ runInit = do
         \Warning: the \"name\" part of the config may be required to open\
         \ the documents you have created in the past."
     else do
-        B.writeFile (B.unpack confPath) (enc initConf)
+        B.writeFile confPath (enc initConf)
         B.putStrLn $ "Created the initial default configuration at " ++
             confPath
 
 -- idempotent session
-session :: Conf -> IO ByteString
+session :: Conf -> IO (ByteString, ByteString)
 session Conf{..} = catchIOError
-    (B.readFile $ B.unpack sessionPath) $ -- get existing session
-    const $ do -- or if that fails, create a new session
+    -- get existing session
+    ( do
+        shelfPath <- B.readFile sessionPath
+        master <- B.readFile (shelfPath ++ "/master")
+        return (shelfPath, master)
+    )
+    -- or if that fails, create a new session
+    $ const $ do
         shelfPath <- mkdtemp "/dev/shm/unbreak-"
-        B.writeFile (B.unpack sessionPath) shelfPath
+        B.writeFile sessionPath shelfPath
         B.putStr "Type password: "
-        password <- withNoEcho B.getLine
-        let master = hash password (T.encodeUtf8 name)
-        B.writeFile (B.unpack $ shelfPath ++ "/master") master
+        password <- withNoEcho B.getLine <* B.putStrLn ""
+        let master = scrypt password (T.encodeUtf8 name)
+        B.writeFile (shelfPath ++ "/master") master
         createDirectory (shelfPath ++ "/file") 0o700
-        return shelfPath
+        return (shelfPath, master)
 
 runOpen :: ByteString -> IO ()
 runOpen filename = getConf f (`editRemoteFile` filename)
@@ -74,7 +76,7 @@ getConf failure success = do
     existence <- fileExist confPath
     if existence
     then do
-        rawConf <- B.readFile (B.unpack confPath)
+        rawConf <- B.readFile confPath
         case dec rawConf of
             Left errmsg -> failure $ B.pack errmsg
             Right conf -> success conf
@@ -84,20 +86,34 @@ getConf failure success = do
 
 editRemoteFile :: Conf -> ByteString -> IO ()
 editRemoteFile conf@Conf{..} filename = do
-    shelfPath <- session conf
+    (shelfPath, master) <- session conf
     let
         filePath = mconcat [shelfPath, "/file/", filename]
+        rawFilePath = filePath ++ "-enc"
         remoteFilePath = mconcat [T.encodeUtf8 remote, filename]
     -- copy the remote file to the shelf
-    run (mconcat ["scp ", remoteFilePath, " ", filePath]) $
-        \ n -> B.putStrLn $ mconcat
+    tryRun (mconcat ["scp ", remoteFilePath, " ", rawFilePath])
+        -- if there is a file, decrypt it
+        ( decrypt master <$> B.readFile rawFilePath >>= \ m -> case m of
+            CryptoPassed plaintext -> B.writeFile filePath plaintext
+            CryptoFailed e -> do
+                B.putStrLn $ "Decryption failed. " ++ B.pack (show e)
+                exitFailure
+        )
+        -- or open a new file
+        $ \ n -> B.putStrLn $ mconcat
             ["Download failed. (", B.pack $ show n, ")\nOpening a new file."]
     -- edit the file in the shelf
     run (mconcat [T.encodeUtf8 editor, " ", filePath]) $ const $ do
         B.putStrLn "Editor exited abnormally. Editing cancelled."
         exitFailure
+    -- encrypt the file
+    edited <- B.readFile filePath
+    nonce <- getRandomBytes 12
+    B.writeFile rawFilePath $
+        throwCryptoError $ encrypt nonce master edited
     -- upload the file from the shelf to the remote
-    run (mconcat ["scp ", filePath, " ", remoteFilePath]) $
+    run (mconcat ["scp ", rawFilePath, " ", remoteFilePath]) $
         \ n -> B.putStrLn $ mconcat
             ["Upload failed. (", B.pack $ show n, ")"]
     B.putStrLn "Done."
@@ -108,10 +124,13 @@ withNoEcho action = do
     bracket_ (hSetEcho stdin False) (hSetEcho stdin old) action
 
 run :: ByteString -> (Int -> IO ()) -> IO ()
-run cmd failHandler = do
-    -- TODO: Avoid String <-> ByteString circus
+run cmd = tryRun cmd (return ())
+
+tryRun :: ByteString -> IO a -> (Int -> IO a) -> IO a
+tryRun cmd successHandler failHandler = do
+    -- TODO: avoid the String <-> ByteString overhead
     (_, _, _, p) <- createProcess (shell $ B.unpack cmd)
     c <- waitForProcess p
     case c of
         ExitFailure n -> failHandler n
-        _ -> return ()
+        _ -> successHandler

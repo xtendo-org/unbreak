@@ -20,6 +20,7 @@ executable unbreak
         bytestring >= 0.10,
         cmdargs >= 0.10,
         cryptonite >= 0.9,
+        memory >= 0.10,
         process == 1.*,
         text == 1.*,
         unix == 2.*,

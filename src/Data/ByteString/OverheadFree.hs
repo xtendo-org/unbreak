@@ -28,4 +28,5 @@ readFile path = bracket open hClose B.hGetContents
 writeFile :: RawFilePath -> ByteString -> IO ()
 writeFile path content = bracket open hClose (`B.hPut` content)
   where
-    open = createFile path regularFileMode >>= fdToHandle
+    open = createFile path dfm >>= fdToHandle
+    dfm = unionFileModes ownerReadMode ownerWriteMode
