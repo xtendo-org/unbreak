@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 
-module Format
+module Unbreak.Format
     ( FromJSON(..)
     , dec
     , EncodeJSON(..)

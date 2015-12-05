@@ -1,4 +1,4 @@
-module Run
+module Unbreak.Run
     ( runInit
     , runOpen
     ) where
@@ -16,8 +16,8 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.OverheadFree as B
 import qualified Data.Text.Encoding as T
 
-import Crypto
-import Format
+import Unbreak.Crypto
+import Unbreak.Format
 
 (++) :: Monoid m => m -> m -> m
 (++) = mappend

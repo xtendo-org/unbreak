@@ -4,7 +4,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import System.Console.CmdArgs.Explicit
 
-import Run
+import Unbreak.Run
 
 data Cmd
     = CmdOpen ByteString

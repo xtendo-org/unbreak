@@ -1,4 +1,4 @@
-module Crypto
+module Unbreak.Crypto
     ( getRandomBytes
     , scrypt
     , encrypt
