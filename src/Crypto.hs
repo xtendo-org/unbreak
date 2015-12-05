@@ -22,13 +22,23 @@ import qualified Crypto.Cipher.ChaChaPoly1305 as C
 getRandomBytes :: Int -> IO ByteString
 getRandomBytes n = withFile "/dev/urandom" ReadMode $ \ h -> hGet h n
 
+-- | The <https://www.tarsnap.com/scrypt.html scrypt>
+-- key derivation function.
 scrypt
     :: ByteString -- ^ input
     -> ByteString -- ^ salt
     -> ByteString -- ^ output (256-bit)
-scrypt = generate (Parameters 128 8 1 32)
+scrypt = generate (Parameters 16384 8 1 32)
 
-encrypt :: ByteString -> ByteString -> ByteString -> CryptoFailable ByteString
+-- | Encrypt the given 'ByteString' using the
+-- <https://tools.ietf.org/html/rfc7539 ChaCha20-Poly1305> scheme.
+-- The resulting 'ByteString' is nonce (12 bytes) ++ ciphertext ++
+-- the auth tag (16 bytes).
+encrypt
+    :: ByteString -- ^ nonce (12 random bytes, must be different each time)
+    -> ByteString -- ^ the secret symmetric key
+    -> ByteString -- ^ the plaintext to be encrypted
+    -> CryptoFailable ByteString -- ^ ciphertext with a 128-bit tag attached
 encrypt nonce key plaintext = (nonce ++) <$> encrypt' nonce key "" plaintext
 
 encrypt'
@@ -45,7 +55,10 @@ encrypt' nonce key header plaintext = do
         auth = C.finalize st3
     return $ out ++ Data.ByteArray.convert auth
 
-decrypt :: ByteString -> ByteString -> CryptoFailable ByteString
+decrypt
+    :: ByteString -- ^ the secret symmetric key
+    -> ByteString -- ^ the input (nonce ++ ciphertext ++ tag)
+    -> CryptoFailable ByteString -- ^ the decrypted plaintext
 decrypt key input = decrypt' nonce key "" ciphertextWithTag
   where
     (nonce, ciphertextWithTag) = B.splitAt 12 input
