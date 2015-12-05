@@ -1,5 +1,5 @@
 name:               unbreak
-version:            0.0.1
+version:            0.1.0
 synopsis:           Secure editing of remote documents with unstable connection
 license:            AGPL-3
 license-file:       LICENSE
