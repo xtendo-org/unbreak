@@ -1,3 +1,12 @@
+-- |
+-- Module       : Unbreak.Crypto
+-- License      : AGPL-3
+-- Maintainer   : Kinoru
+-- Stability    : Provisional
+-- Portability  : POSIX
+--
+-- Simple interface to the cryptographic primitives that are provided by
+-- the <https://hackage.haskell.org/package/cryptonite cryptonite> package.
 module Unbreak.Crypto
     ( getRandomBytes
     , scrypt
@@ -19,19 +28,26 @@ import qualified Crypto.Cipher.ChaChaPoly1305 as C
 (++) :: Monoid m => m -> m -> m
 (++) = mappend
 
+-- | Read bytes from @\/dev\/urandom@.
 getRandomBytes :: Int -> IO ByteString
 getRandomBytes n = withFile "/dev/urandom" ReadMode $ \ h -> hGet h n
 
 -- | The <https://www.tarsnap.com/scrypt.html scrypt>
--- key derivation function.
+-- key derivation function from "Crypto.KDF.Scrypt". The parameters are:
+--
+-- * CPU/memory cost parameter N = 16384 (2^14)
+-- * SMix function parameter r = 8
+-- * Parallelization parameter p = 1
+-- * Intended output length dkLen = 32 (for use in ChaCha20-Poly1305)
 scrypt
     :: ByteString -- ^ input
     -> ByteString -- ^ salt
-    -> ByteString -- ^ output (256-bit)
+    -> ByteString -- ^ output (32 bytes)
 scrypt = generate (Parameters 16384 8 1 32)
 
 -- | Encrypt the given 'ByteString' using the
--- <https://tools.ietf.org/html/rfc7539 ChaCha20-Poly1305> scheme.
+-- <https://tools.ietf.org/html/rfc7539 ChaCha20-Poly1305> scheme
+-- from "Crypto.Cipher.ChaChaPoly1305".
 -- The resulting 'ByteString' is nonce (12 bytes) ++ ciphertext ++
 -- the auth tag (16 bytes).
 encrypt
@@ -55,6 +71,7 @@ encrypt' nonce key header plaintext = do
         auth = C.finalize st3
     return $ out ++ Data.ByteArray.convert auth
 
+-- | Decrypt a 'ByteString' that is produced by the 'encrypt' function.
 decrypt
     :: ByteString -- ^ the secret symmetric key
     -> ByteString -- ^ the input (nonce ++ ciphertext ++ tag)
