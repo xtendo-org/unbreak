@@ -107,7 +107,8 @@ editRemoteFile conf@Conf{..} filename = do
     -- copy the remote file to the shelf
     tryRun (mconcat ["scp ", remoteFilePath, " ", rawFilePath])
         -- if there is a file, decrypt it
-        ( decrypt master <$> B.readFile rawFilePath >>= \ m -> case m of
+        ( decrypt master <$> B.tail <$> B.readFile rawFilePath >>=
+            \ m -> case m of
             CryptoPassed plaintext -> B.writeFile filePath plaintext
             CryptoFailed e -> do
                 B.putStrLn $ "Decryption failed. " ++ B.pack (show e)
@@ -124,7 +125,8 @@ editRemoteFile conf@Conf{..} filename = do
     edited <- B.readFile filePath
     nonce <- getRandomBytes 12
     B.writeFile rawFilePath $
-        throwCryptoError $ encrypt nonce master edited
+        -- adding the version number, for forward compatibility
+        "\0" ++ (throwCryptoError $ encrypt nonce master edited)
     -- upload the file from the shelf to the remote
     run (mconcat ["scp ", rawFilePath, " ", remoteFilePath]) $
         \ n -> B.putStrLn $ mconcat
