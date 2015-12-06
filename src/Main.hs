@@ -1,7 +1,9 @@
 module Main where
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString.Builder as B
 import System.Console.CmdArgs.Explicit
 
 import Unbreak.Run
@@ -20,7 +22,8 @@ arguments = mode "unbreak" (CmdOpen "")
     , -} flagHelpSimple (const CmdHelp)
     ]
   where
-    argUpd a _ = Right $ CmdOpen (B.pack a)
+    argUpd a _ = Right $ CmdOpen (pack a)
+    pack = LB.toStrict . B.toLazyByteString . B.stringUtf8
 
 main :: IO ()
 main = do

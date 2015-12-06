@@ -12,6 +12,8 @@ module Unbreak.Crypto
     , scrypt
     , encrypt
     , decrypt
+    , encryptNoAuth
+    , decryptNoAuth
     , module Crypto.Error
     ) where
 
@@ -71,6 +73,21 @@ encrypt' nonce key header plaintext = do
         auth = C.finalize st3
     return $ out ++ Data.ByteArray.convert auth
 
+-- | Encryption without the auth tag and without the optional header.
+-- 'encrypt' is almost always the better choice. Use this function only when
+-- you know what you are doing.
+encryptNoAuth
+    :: ByteString -- ^ nonce (12 random bytes)
+    -> ByteString -- ^ the secret symmetric key
+    -> ByteString -- ^ input plaintext to be encrypted
+    -> ByteString -- ^ the resulting ciphertext
+encryptNoAuth nonce key plaintext = throwCryptoError $ do
+    st1 <- C.nonce12 nonce >>= C.initialize key
+    let
+        st2 = C.finalizeAAD st1
+        (out, _) = C.encrypt plaintext st2
+    return out
+
 -- | Decrypt a 'ByteString' that is produced by the 'encrypt' function.
 decrypt
     :: ByteString -- ^ the secret symmetric key
@@ -104,3 +121,16 @@ decrypt' nonce key header input
             (out, st3) = C.decrypt ciphertext st2
             auth = C.finalize st3
         return (out, auth)
+
+-- | Decryption without the auth tag checking.
+decryptNoAuth
+    :: ByteString -- ^ the nonce used for encryption
+    -> ByteString -- ^ the secret symmetric key
+    -> ByteString -- ^ input ciphertext to be decrypted
+    -> ByteString -- ^ the resulting plaintext
+decryptNoAuth nonce key ciphertext = throwCryptoError $ do
+    st1 <- C.nonce12 nonce >>= C.initialize key
+    let
+        st2 = C.finalizeAAD st1
+        (out, _) = C.decrypt ciphertext st2
+    return out

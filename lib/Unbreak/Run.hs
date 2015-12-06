@@ -22,6 +22,7 @@ import System.Process
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.OverheadFree as B
+import qualified Data.ByteString.Base64.URL as B64
 import qualified Data.Text.Encoding as T
 
 import Unbreak.Crypto
@@ -98,12 +99,15 @@ getConf failure success = do
         failure "~/.unbreak.json does not exist"
 
 editRemoteFile :: Conf -> ByteString -> IO ()
-editRemoteFile conf@Conf{..} filename = do
+editRemoteFile conf@Conf{..} fileName = do
     (shelfPath, master) <- session conf
     let
-        filePath = mconcat [shelfPath, "/file/", filename]
-        rawFilePath = filePath ++ "-enc"
-        remoteFilePath = mconcat [T.encodeUtf8 remote, filename]
+        encFileName = B64.encode $ encryptNoAuth
+            (B.take 12 $ B.drop 10 $ scrypt (T.encodeUtf8 name) master)
+            master fileName
+        filePath = mconcat [shelfPath, "/file/", fileName]
+        rawFilePath = mconcat [shelfPath, "/file/", encFileName]
+        remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
     -- copy the remote file to the shelf
     tryRun (mconcat ["scp ", remoteFilePath, " ", rawFilePath])
         -- if there is a file, decrypt it
@@ -116,7 +120,7 @@ editRemoteFile conf@Conf{..} filename = do
         )
         -- or open a new file
         $ \ n -> B.putStrLn $ mconcat
-            ["Download failed. (", B.pack $ show n, ")\nOpening a new file."]
+            ["Download failed. (", B.pack $ show n, ")"]
     -- edit the file in the shelf
     run (mconcat [T.encodeUtf8 editor, " ", filePath]) $ const $ do
         B.putStrLn "Editor exited abnormally. Editing cancelled."
@@ -126,7 +130,7 @@ editRemoteFile conf@Conf{..} filename = do
     nonce <- getRandomBytes 12
     B.writeFile rawFilePath $
         -- adding the version number, for forward compatibility
-        "\0" ++ (throwCryptoError $ encrypt nonce master edited)
+        "\0" ++ throwCryptoError (encrypt nonce master edited)
     -- upload the file from the shelf to the remote
     run (mconcat ["scp ", rawFilePath, " ", remoteFilePath]) $
         \ n -> B.putStrLn $ mconcat

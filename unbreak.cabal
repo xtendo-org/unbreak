@@ -22,6 +22,7 @@ library
     build-depends:
         aeson >= 0.9,
         aeson-pretty >= 0.7,
+        base64-bytestring == 1.*,
         bytestring >= 0.10,
         cryptonite >= 0.9,
         memory >= 0.10,
