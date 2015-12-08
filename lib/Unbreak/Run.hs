@@ -12,6 +12,7 @@ module Unbreak.Run
     ) where
 
 import Prelude hiding ((++))
+import Control.Monad
 import Control.Exception
 import System.IO
 import System.IO.Error
@@ -119,22 +120,28 @@ editRemoteFile conf@Conf{..} fileName = do
                 exitFailure
         )
         -- or open a new file
-        $ \ n -> B.putStrLn $ mconcat
-            ["Download failed. (", B.pack $ show n, ")"]
+        $ \ _ -> do
+            B.putStrLn "Create new file."
+            B.writeFile filePath ""
+    -- record the current time
+    before <- epochTime
     -- edit the file in the shelf
     run (mconcat [T.encodeUtf8 editor, " ", filePath]) $ const $ do
         B.putStrLn "Editor exited abnormally. Editing cancelled."
         exitFailure
-    -- encrypt the file
-    edited <- B.readFile filePath
-    nonce <- getRandomBytes 12
-    B.writeFile rawFilePath $
-        -- adding the version number, for forward compatibility
-        "\0" ++ throwCryptoError (encrypt nonce master edited)
-    -- upload the file from the shelf to the remote
-    run (mconcat ["scp ", rawFilePath, " ", remoteFilePath]) $
-        \ n -> B.putStrLn $ mconcat
-            ["Upload failed. (", B.pack $ show n, ")"]
+    -- check mtime to see if the file has been modified
+    after <- modificationTime <$> getFileStatus filePath
+    when (before < after) $ do
+        -- encrypt the file
+        edited <- B.readFile filePath
+        nonce <- getRandomBytes 12
+        B.writeFile rawFilePath $
+            -- adding the version number, for forward compatibility
+            "\0" ++ throwCryptoError (encrypt nonce master edited)
+        -- upload the file from the shelf to the remote
+        run (mconcat ["scp ", rawFilePath, " ", remoteFilePath]) $
+            \ n -> B.putStrLn $ mconcat
+                ["Upload failed. (", B.pack $ show n, ")"]
     B.putStrLn "Done."
 
 withNoEcho :: IO a -> IO a
