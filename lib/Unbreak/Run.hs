@@ -142,6 +142,9 @@ editRemoteFile conf@Conf{..} fileName = do
         run (mconcat ["scp ", rawFilePath, " ", remoteFilePath]) $
             \ n -> B.putStrLn $ mconcat
                 ["Upload failed. (", B.pack $ show n, ")"]
+    -- remove local temporary files
+    removeLink rawFilePath
+    removeLink filePath
     B.putStrLn "Done."
 
 withNoEcho :: IO a -> IO a
