@@ -9,6 +9,7 @@
 module Unbreak.Run
     ( runInit
     , runOpen
+    , runLogout
     ) where
 
 import Prelude hiding ((++))
@@ -146,6 +147,27 @@ editRemoteFile conf@Conf{..} fileName = do
     removeLink rawFilePath
     removeLink filePath
     B.putStrLn "Done."
+
+runLogout :: IO ()
+runLogout = do
+    shelfPath <- catchIOError (B.readFile sessionPath) $ \ e -> do
+        B.putStrLn $ mconcat
+            [ "Reading "
+            , sessionPath
+            , " has failed. ("
+            , B.pack $ show e
+            , ") Perhaps there is no active session?"
+            ]
+        exitFailure
+    -- TODO: replace this with a more sensible system call
+    run ("rm -rf " ++ shelfPath) $ \ errorCode -> B.putStrLn $ mconcat
+        [ "[!] Removing the session directory at "
+        , shelfPath
+        , " failed! ("
+        , B.pack $ show errorCode
+        , ") Please manually delete it."
+        ]
+    removeLink sessionPath
 
 withNoEcho :: IO a -> IO a
 withNoEcho action = do
