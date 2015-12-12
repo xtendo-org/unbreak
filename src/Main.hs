@@ -8,26 +8,41 @@ import System.Console.CmdArgs.Explicit
 
 import Unbreak.Run
 
+pack :: String -> ByteString
+pack = LB.toStrict . B.toLazyByteString . B.stringUtf8
+
 data Cmd
-    = CmdOpen ByteString
+    = CmdInit
+    | CmdOpen ByteString
+    | CmdLogout
     | CmdHelp
 
-arguments :: Mode Cmd
-arguments = mode "unbreak" (CmdOpen "")
-    "insert appropriate intro here" -- FIXME
-    (flagArg argUpd "FILENAME")
-    [ {- flagNone ["init", "i"]
-        (const CmdInit) "Create the default configuration file at\
-            \ ~/.e.xtendo.org/unbreak.json"
-    , -} flagHelpSimple (const CmdHelp)
-    ]
+modeInit :: Mode Cmd
+modeInit = mode "init" CmdInit "create the default config file"
+    (flagArg (\_ c -> Right c) "") []
+
+modeOpen :: Mode Cmd
+modeOpen = mode "open" (CmdOpen "") "open a remote encrypted file"
+    (flagArg argUpd "FILENAME") []
   where
     argUpd a _ = Right $ CmdOpen (pack a)
-    pack = LB.toStrict . B.toLazyByteString . B.stringUtf8
+
+modeLogout :: Mode Cmd
+modeLogout = mode "logout" CmdLogout "delete the current session"
+    (flagArg (\_ c -> Right c) "") []
+
+arguments :: Mode Cmd
+arguments = modes "unbreak" CmdHelp
+    "remote, accessible, and encrypted file storage utility"
+    [modeInit, modeOpen, modeLogout]
 
 main :: IO ()
 main = do
     args <- processArgs arguments
     case args of
         CmdHelp     -> print $ helpText [] HelpFormatDefault arguments
-        CmdOpen b   -> if B.length b == 0 then runInit else runOpen b
+        CmdInit     -> runInit
+        CmdOpen b   -> if B.length b == 0
+            then error "file name can't be empty"
+            else runOpen b
+        CmdLogout   -> runLogout
