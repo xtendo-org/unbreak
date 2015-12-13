@@ -12,8 +12,8 @@ module Unbreak.Crypto
     , scrypt
     , encrypt
     , decrypt
-    , encryptNoAuth
-    , decryptNoAuth
+    , encryptFileName
+    , decryptFileName
     , module Crypto.Error
     ) where
 
@@ -21,6 +21,9 @@ import Prelude hiding ((++))
 import System.IO
 import Data.ByteString (ByteString, hGet)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy as LB
+import qualified Data.ByteString.Builder as B
+import Data.Serialize.Get
 
 import Data.ByteArray (convert)
 import Crypto.Error
@@ -73,6 +76,22 @@ encrypt' nonce key header plaintext = do
         auth = C.finalize st3
     return $ out ++ Data.ByteArray.convert auth
 
+-- | Encryption of unbreak file names.
+encryptFileName
+    :: ByteString -- ^ file name
+    -> ByteString -- ^ key
+    -> ByteString
+encryptFileName key fileName = nonce ++ encryptNoAuth nonce key
+    (mconcat [word32LEencode oLen, fileName, padding])
+  where
+    nonce = B.take 12 $ B.drop 10 $ scrypt fileName key
+    oLen = B.length fileName
+    -- 4: the length (in 32 bits) always occupies 4 bytes
+    -- 12: the nonce always occupies 12 bytes
+    -- -1: to make the result 48 when the input is 44, or 96 when 92, etc.
+    goalLen = (((oLen + 15) `div` 48) + 1) * 48
+    padding = B.pack $ replicate (goalLen - 16 - oLen) '\0'
+
 -- | Encryption without the auth tag and without the optional header.
 -- 'encrypt' is almost always the better choice. Use this function only when
 -- you know what you are doing.
@@ -122,6 +141,17 @@ decrypt' nonce key header input
             auth = C.finalize st3
         return (out, auth)
 
+-- | Decryption of unbreak file names.
+decryptFileName
+    :: ByteString
+    -> ByteString
+    -> ByteString
+decryptFileName key encrypted = B.take oLen $ B.drop 4 decrypted
+  where
+    (nonce, ciphertext) = B.splitAt 12 encrypted
+    decrypted = decryptNoAuth nonce key ciphertext
+    oLen = word32LEdecode decrypted
+
 -- | Decryption without the auth tag checking.
 decryptNoAuth
     :: ByteString -- ^ the nonce used for encryption
@@ -134,3 +164,11 @@ decryptNoAuth nonce key ciphertext = throwCryptoError $ do
         st2 = C.finalizeAAD st1
         (out, _) = C.decrypt ciphertext st2
     return out
+
+word32LEencode :: Int -> ByteString
+word32LEencode = LB.toStrict . B.toLazyByteString . B.word32LE . fromIntegral
+
+word32LEdecode :: ByteString -> Int
+word32LEdecode = fromIntegral .
+    either (const $ error "word32LE decode fail") id .
+    runGet getWord32le

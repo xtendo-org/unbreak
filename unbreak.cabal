@@ -24,6 +24,7 @@ library
         aeson-pretty >= 0.7,
         base64-bytestring == 1.*,
         bytestring >= 0.10,
+        cereal >= 0.4,
         cryptonite >= 0.9,
         memory >= 0.10,
         process == 1.*,

@@ -105,9 +105,7 @@ editRemoteFile :: Conf -> ByteString -> IO ()
 editRemoteFile conf@Conf{..} fileName = do
     (shelfPath, master) <- session conf
     let
-        encFileName = B64.encode $ encryptNoAuth
-            (B.take 12 $ B.drop 10 $ scrypt (T.encodeUtf8 name) master)
-            master fileName
+        encFileName = B64.encode $ encryptFileName master fileName
         filePath = mconcat [shelfPath, "/file/", fileName]
         rawFilePath = mconcat [shelfPath, "/file/", encFileName]
         remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
@@ -180,9 +178,7 @@ encryptAndSend :: Conf -> RawFilePath -> IO ()
 encryptAndSend conf@Conf{..} rawFilePath = do
     (shelfPath, master) <- session conf
     let
-        encFileName = B64.encode $ encryptNoAuth
-            (B.take 12 $ B.drop 10 $ scrypt (T.encodeUtf8 name) master)
-            master fileName
+        encFileName = B64.encode $ encryptFileName master fileName
         encFilePath = mconcat [shelfPath, "/file/", encFileName]
         remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
     encryptCopy master rawFilePath encFilePath
