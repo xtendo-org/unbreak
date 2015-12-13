@@ -10,6 +10,7 @@ module Unbreak.Run
     ( runInit
     , runOpen
     , runLogout
+    , runAdd
     ) where
 
 import Prelude hiding ((++))
@@ -168,6 +169,39 @@ runLogout = do
         , ") Please manually delete it."
         ]
     removeLink sessionPath
+
+-- | Pick a local file, encrypt it, and send to the remote storage.
+runAdd :: RawFilePath -> IO ()
+runAdd filePath = getConf f (`encryptAndSend` filePath)
+  where
+    f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
+
+encryptAndSend :: Conf -> RawFilePath -> IO ()
+encryptAndSend conf@Conf{..} rawFilePath = do
+    (shelfPath, master) <- session conf
+    let
+        encFileName = B64.encode $ encryptNoAuth
+            (B.take 12 $ B.drop 10 $ scrypt (T.encodeUtf8 name) master)
+            master fileName
+        encFilePath = mconcat [shelfPath, "/file/", encFileName]
+        remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
+    encryptCopy master rawFilePath encFilePath
+    -- upload the file from the shelf to the remote
+    run (mconcat ["scp ", encFilePath, " ", remoteFilePath]) $
+        \ n -> B.putStrLn $ mconcat
+            ["Upload failed. (", B.pack $ show n, ")"]
+    -- cleanup: remove the local temporary file
+    removeLink encFilePath
+  where
+    (_, fileName) = B.breakEnd (== '/') rawFilePath
+
+encryptCopy :: ByteString -> RawFilePath -> RawFilePath -> IO ()
+encryptCopy key sourcePath targetPath = do
+    plaintext <- B.readFile sourcePath
+    nonce <- getRandomBytes 12
+    B.writeFile targetPath $
+        -- adding the version number, for forward compatibility
+        "\0" ++ throwCryptoError (encrypt nonce key plaintext)
 
 withNoEcho :: IO a -> IO a
 withNoEcho action = do

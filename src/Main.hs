@@ -15,6 +15,7 @@ data Cmd
     = CmdInit
     | CmdOpen ByteString
     | CmdLogout
+    | CmdAdd ByteString
     | CmdHelp
 
 modeInit :: Mode Cmd
@@ -31,10 +32,16 @@ modeLogout :: Mode Cmd
 modeLogout = mode "logout" CmdLogout "delete the current session"
     (flagArg (\_ c -> Right c) "") []
 
+modeAdd :: Mode Cmd
+modeAdd = mode "add" (CmdAdd "") "encrypt a file and store it remotely"
+    (flagArg argUpd "FILENAME") []
+  where
+    argUpd a _ = Right $ CmdAdd (pack a)
+
 arguments :: Mode Cmd
 arguments = modes "unbreak" CmdHelp
     "remote, accessible, and encrypted file storage utility"
-    [modeInit, modeOpen, modeLogout]
+    [modeInit, modeOpen, modeLogout, modeAdd]
 
 main :: IO ()
 main = do
@@ -46,3 +53,6 @@ main = do
             then error "file name can't be empty"
             else runOpen b
         CmdLogout   -> runLogout
+        CmdAdd b    -> if B.length b == 0
+            then error "file name can't be empty"
+            else runAdd b
