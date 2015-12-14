@@ -107,12 +107,12 @@ editRemoteFile conf@Conf{..} fileName = do
     let
         encFileName = B64.encode $ encryptFileName master fileName
         filePath = mconcat [shelfPath, "/file/", fileName]
-        rawFilePath = mconcat [shelfPath, "/file/", encFileName]
+        encFilePath = mconcat [shelfPath, "/file/", encFileName]
         remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
     -- copy the remote file to the shelf
-    tryRun (mconcat ["scp ", remoteFilePath, " ", rawFilePath])
+    tryRun (mconcat ["scp ", remoteFilePath, " ", encFilePath])
         -- if there is a file, decrypt it
-        ( decrypt master <$> B.tail <$> B.readFile rawFilePath >>=
+        ( decrypt master <$> B.tail <$> B.readFile encFilePath >>=
             \ m -> case m of
             CryptoPassed plaintext -> B.writeFile filePath plaintext
             CryptoFailed e -> do
@@ -133,17 +133,23 @@ editRemoteFile conf@Conf{..} fileName = do
     after <- modificationTime <$> getFileStatus filePath
     when (before < after) $ do
         -- encrypt the file
-        edited <- B.readFile filePath
-        nonce <- getRandomBytes 12
-        B.writeFile rawFilePath $
-            -- adding the version number, for forward compatibility
-            "\0" ++ throwCryptoError (encrypt nonce master edited)
+        encryptCopy master filePath encFilePath
         -- upload the file from the shelf to the remote
-        run (mconcat ["scp ", rawFilePath, " ", remoteFilePath]) $
-            \ n -> B.putStrLn $ mconcat
-                ["Upload failed. (", B.pack $ show n, ")"]
-    -- remove local temporary files
-    removeLink rawFilePath
+        run (mconcat ["scp ", encFilePath, " ", remoteFilePath]) $
+            \ n -> do
+                B.putStrLn $ mconcat
+                    [ "[!] Upload failed. ("
+                    , B.pack $ show n
+                    , ")\nYour file is at:\n\n\t"
+                    , filePath
+                    , "\n\nIf you want to retry upload, try:\n\n\t"
+                    , "unbreak add -f "
+                    , filePath
+                    , "\n"
+                    ]
+                removeLink encFilePath
+                exitFailure
+        removeLink encFilePath
     removeLink filePath
     B.putStrLn "Done."
 
@@ -178,14 +184,14 @@ runAdd force filePath = getConf f (\ c -> encryptAndSend c force filePath)
     f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
 
 encryptAndSend :: Conf -> Bool -> RawFilePath -> IO ()
-encryptAndSend conf@Conf{..} force rawFilePath = do
+encryptAndSend conf@Conf{..} force filePath = do
     (shelfPath, master) <- session conf
     let
         encFileName = B64.encode $ encryptFileName master fileName
         encFilePath = mconcat [shelfPath, "/file/", encFileName]
         remoteFilePath = mconcat [remoteB, encFileName]
         action = do
-            encryptCopy master rawFilePath encFilePath
+            encryptCopy master filePath encFilePath
             -- upload the file from the shelf to the remote
             run (mconcat ["scp ", encFilePath, " ", remoteFilePath]) $
                 \ n -> B.putStrLn $ mconcat
@@ -204,7 +210,7 @@ encryptAndSend conf@Conf{..} force rawFilePath = do
     (host, cDocdir) = B.break (== ':') remoteB
     docdir = if B.head cDocdir == ':' then B.tail cDocdir else cDocdir
     remoteB = T.encodeUtf8 remote
-    (_, fileName) = B.breakEnd (== '/') rawFilePath
+    (_, fileName) = B.breakEnd (== '/') filePath
 
 encryptCopy :: ByteString -> RawFilePath -> RawFilePath -> IO ()
 encryptCopy key sourcePath targetPath = do
