@@ -124,7 +124,7 @@ decrypt'
     -> ByteString -- ciphertext with the tag attached
     -> CryptoFailable ByteString -- ^ decrypted plaintext
 decrypt' nonce key header input
-    | B.length input < 17 =
+    | B.length input < 16 =
         CryptoFailed CryptoError_AuthenticationTagSizeInvalid
     | otherwise = case decryptionAttempt of
         CryptoPassed (decrypted, auth)
