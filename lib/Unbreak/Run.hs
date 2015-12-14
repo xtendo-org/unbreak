@@ -169,25 +169,22 @@ runLogout = do
     removeLink sessionPath
 
 -- | Pick a local file, encrypt it, and send to the remote storage.
-runAdd :: RawFilePath -> IO ()
-runAdd filePath = getConf f (`encryptAndSend` filePath)
+runAdd
+    :: Bool -- ^ Force upload even when the file name already exists
+    -> RawFilePath
+    -> IO ()
+runAdd force filePath = getConf f (\ c -> encryptAndSend c force filePath)
   where
     f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
 
-encryptAndSend :: Conf -> RawFilePath -> IO ()
-encryptAndSend conf@Conf{..} rawFilePath = do
+encryptAndSend :: Conf -> Bool -> RawFilePath -> IO ()
+encryptAndSend conf@Conf{..} force rawFilePath = do
     (shelfPath, master) <- session conf
     let
         encFileName = B64.encode $ encryptFileName master fileName
         encFilePath = mconcat [shelfPath, "/file/", encFileName]
         remoteFilePath = mconcat [remoteB, encFileName]
-    tryRun (mconcat ["ssh ", host, " test -e ", docdir, encFileName])
-        ( do
-            B.putStrLn
-                "The file name already exists in the storage. Cancelled."
-            exitFailure
-        )
-        ( const $ do
+        action = do
             encryptCopy master rawFilePath encFilePath
             -- upload the file from the shelf to the remote
             run (mconcat ["scp ", encFilePath, " ", remoteFilePath]) $
@@ -195,7 +192,14 @@ encryptAndSend conf@Conf{..} rawFilePath = do
                     ["Upload failed. (", B.pack $ show n, ")"]
             -- cleanup: remove the local temporary file
             removeLink encFilePath
+    if force then action
+    else tryRun (mconcat ["ssh ", host, " test -e ", docdir, encFileName])
+        ( do
+            B.putStrLn
+                "The file name already exists in the storage. Cancelled."
+            exitFailure
         )
+        $ const action
   where
     (host, cDocdir) = B.break (== ':') remoteB
     docdir = if B.head cDocdir == ':' then B.tail cDocdir else cDocdir

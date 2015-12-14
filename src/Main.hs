@@ -15,7 +15,9 @@ data Cmd
     = CmdInit
     | CmdOpen ByteString
     | CmdLogout
-    | CmdAdd ByteString
+    | CmdAdd
+        Bool -- ^ force overwrite or not
+        ByteString
     | CmdHelp
 
 modeInit :: Mode Cmd
@@ -33,10 +35,14 @@ modeLogout = mode "logout" CmdLogout "delete the current session"
     (flagArg (\_ c -> Right c) "") []
 
 modeAdd :: Mode Cmd
-modeAdd = mode "add" (CmdAdd "") "encrypt a file and store it remotely"
-    (flagArg argUpd "FILENAME") []
+modeAdd = mode "add" (CmdAdd False "") "encrypt a file and store it remotely"
+    (flagArg argUpd "FILENAME")
+    [flagNone ["force", "f"] forceUpd "force overwrite existing file"]
   where
-    argUpd a _ = Right $ CmdAdd (pack a)
+    argUpd a (CmdAdd f _)   = Right $ CmdAdd f (pack a)
+    argUpd a _              = Right $ CmdAdd False (pack a)
+    forceUpd (CmdAdd _ s) = CmdAdd True s
+    forceUpd _ = undefined
 
 arguments :: Mode Cmd
 arguments = modes "unbreak" CmdHelp
@@ -53,6 +59,6 @@ main = do
             then error "file name can't be empty"
             else runOpen b
         CmdLogout   -> runLogout
-        CmdAdd b    -> if B.length b == 0
+        CmdAdd f b  -> if B.length b == 0
             then error "file name can't be empty"
-            else runAdd b
+            else runAdd f b
