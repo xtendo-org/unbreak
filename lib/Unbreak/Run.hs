@@ -98,7 +98,7 @@ getConf failure success = do
             Left errmsg -> failure $ B.pack errmsg
             Right conf -> success conf
     else do
-        B.putStrLn "You may need to run unbreak (without arguments) first."
+        B.putStrLn "You may need to run 'unbreak init' first."
         failure "~/.unbreak.json does not exist"
 
 editRemoteFile :: Conf -> ByteString -> IO ()
