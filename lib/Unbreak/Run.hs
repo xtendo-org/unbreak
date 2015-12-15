@@ -156,7 +156,9 @@ editRemoteFile conf@Conf{..} fileName = do
 runLogout :: IO ()
 runLogout = do
     shelfPath <- catchIOError (B.readFile sessionPath) $ \ e -> do
-        B.putStrLn $ mconcat
+        if isDoesNotExistError e
+        then B.putStrLn "You are not logged in."
+        else B.putStrLn $ mconcat
             [ "Reading "
             , sessionPath
             , " has failed. ("
