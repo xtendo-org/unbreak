@@ -6,7 +6,7 @@ license-file:       LICENSE
 author:             Kinoru
 maintainer:         xkinoru@gmail.com
 copyright:          Copyright (C) 2015 Kinoru
-category:           Web
+category:           Network
 build-type:         Simple
 cabal-version:      >=1.18
 
