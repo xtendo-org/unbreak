@@ -1,5 +1,11 @@
 # Change Log
 
+## 0.3.1 - 2015-12-30
+
+- Changed wrong error messages and improved existing messages.
+- Added necessary fields to unbreak.cabal.
+- Applied [wild](https://github.com/kinoru/wild).
+
 ## 0.3.0 - 2015-12-15
 
 - The command line arguments interface has changed to multi-mode. Users are now advised to set `u` as an alias of `unbreak open`.
