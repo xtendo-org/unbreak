@@ -51,7 +51,6 @@ library
         cereal >= 0.4,
         cryptonite >= 0.9,
         memory >= 0.10,
-        process == 1.*,
         text == 1.*,
         unix == 2.*,
         base >=4.8 && <4.9

@@ -21,7 +21,6 @@ import System.IO.Error
 import System.Exit
 
 import System.Posix.ByteString
-import System.Process
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.OverheadFree as B
@@ -49,10 +48,10 @@ runInit = do
     confPath <- (++ "/.unbreak.json") <$> getHomePath
     existence <- fileExist confPath
     if existence
-    then B.putStrLn "There is already the ~/.unbreak.json file.\
+    then B.putStrLn "The file ~/.unbreak.json already exists.\
         \ If you are willing to create the default config file,\
         \ please delete ~/.unbreak.json and retry.\n\
-        \Warning: the \"name\" part of the config may be required to open\
+        \CAUTION: the \"name\" part of the config may be required to open\
         \ the documents you have created in the past."
     else do
         B.writeFile confPath (enc initConf)
@@ -110,7 +109,7 @@ editRemoteFile conf@Conf{..} fileName = do
         encFilePath = mconcat [shelfPath, "/file/", encFileName]
         remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
     -- copy the remote file to the shelf
-    tryRun (mconcat ["scp ", remoteFilePath, " ", encFilePath])
+    tryRun "scp" [remoteFilePath, encFilePath]
         -- if there is a file, decrypt it
         ( decrypt master <$> B.tail <$> B.readFile encFilePath >>=
             \ m -> case m of
@@ -126,7 +125,7 @@ editRemoteFile conf@Conf{..} fileName = do
     -- record the current time
     before <- epochTime
     -- edit the file in the shelf
-    run (mconcat [T.encodeUtf8 editor, " ", filePath]) $ const $ do
+    run (T.encodeUtf8 editor) [filePath] $ const $ do
         B.putStrLn "Editor exited abnormally. Editing cancelled."
         exitFailure
     -- check mtime to see if the file has been modified
@@ -135,7 +134,7 @@ editRemoteFile conf@Conf{..} fileName = do
         -- encrypt the file
         encryptCopy master filePath encFilePath
         -- upload the file from the shelf to the remote
-        run (mconcat ["scp ", encFilePath, " ", remoteFilePath]) $
+        run "scp" [encFilePath, remoteFilePath] $
             \ n -> do
                 B.putStrLn $ mconcat
                     [ "[!] Upload failed. ("
@@ -167,7 +166,7 @@ runLogout = do
             ]
         exitFailure
     -- TODO: replace this with a more sensible system call
-    run ("rm -rf " ++ shelfPath) $ \ errorCode -> B.putStrLn $ mconcat
+    run "rm" ["-rf", shelfPath] $ \ errorCode -> B.putStrLn $ mconcat
         [ "[!] Removing the session directory at "
         , shelfPath
         , " failed! ("
@@ -195,13 +194,13 @@ encryptAndSend conf@Conf{..} force filePath = do
         action = do
             encryptCopy master filePath encFilePath
             -- upload the file from the shelf to the remote
-            run (mconcat ["scp ", encFilePath, " ", remoteFilePath]) $
+            run "scp" [encFilePath, remoteFilePath] $
                 \ n -> B.putStrLn $ mconcat
                     ["Upload failed. (", B.pack $ show n, ")"]
             -- cleanup: remove the local temporary file
             removeLink encFilePath
     if force then action
-    else tryRun (mconcat ["ssh ", host, " test -e ", docdir, encFileName])
+    else tryRun "ssh" [host, "test", "-e", docdir ++ encFileName]
         ( do
             B.putStrLn
                 "The file name already exists in the storage. Cancelled."
@@ -227,14 +226,16 @@ withNoEcho action = do
     old <- hGetEcho stdin
     bracket_ (hSetEcho stdin False) (hSetEcho stdin old) action
 
-run :: ByteString -> (Int -> IO ()) -> IO ()
-run cmd = tryRun cmd (return ())
+run :: RawFilePath -> [ByteString] -> (Int -> IO ()) -> IO ()
+run cmd args = tryRun cmd args (return ())
 
-tryRun :: ByteString -> IO a -> (Int -> IO a) -> IO a
-tryRun cmd successHandler failHandler = do
-    -- TODO: avoid the String <-> ByteString overhead
-    (_, _, _, p) <- createProcess (shell $ B.unpack cmd)
-    c <- waitForProcess p
-    case c of
-        ExitFailure n -> failHandler n
-        _ -> successHandler
+tryRun :: RawFilePath -> [ByteString] -> IO a -> (Int -> IO a) -> IO a
+tryRun cmd args successHandler failHandler = do
+    pid <- forkProcess $ executeFile cmd True args Nothing
+    getProcessStatus True False pid >>= \ mstatus -> case mstatus of
+        Just status -> case status of
+            Exited exitCode -> case exitCode of
+                ExitSuccess -> successHandler
+                ExitFailure c -> failHandler c
+            _ -> error $ show cmd
+        Nothing -> error $ show cmd
