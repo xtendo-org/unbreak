@@ -55,7 +55,7 @@ library
         text == 1.*,
         unix == 2.*,
         base >=4.8 && <4.9
-    ghc-options: -Wall -fwarn-incomplete-uni-patterns -O2 -threaded
+    ghc-options: -Wall -fwarn-incomplete-uni-patterns
 
 executable unbreak
     default-extensions: OverloadedStrings, RecordWildCards
