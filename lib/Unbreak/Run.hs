@@ -11,6 +11,7 @@ module Unbreak.Run
     , runOpen
     , runLogout
     , runAdd
+    , runList
     ) where
 
 import Prelude hiding ((++))
@@ -29,6 +30,7 @@ import qualified Data.Text.Encoding as T
 
 import Unbreak.Crypto
 import Unbreak.Format
+import Unbreak.Pack
 
 (++) :: Monoid m => m -> m -> m
 (++) = mappend
@@ -194,9 +196,8 @@ encryptAndSend force filePath Conf{..} Session{..} = if force then action else
         (B.putStrLn msg *> exitFailure) $ const action
   where
     msg = "The file name already exists in the storage. Cancelled."
-    (host, cDocdir) = B.break (== ':') remoteB
-    docdir = if B.head cDocdir == ':' then B.tail cDocdir else cDocdir
     remoteB = T.encodeUtf8 remote
+    (host, docdir) = sshHost remoteB
     fileName = snd $ B.breakEnd (== '/') filePath
     encFileName = B64.encode $ encryptFileName master fileName
     encFilePath = mconcat [shelfPath, "/file/", encFileName]
@@ -218,6 +219,24 @@ encryptCopy key sourcePath targetPath = do
         -- adding the version number, for forward compatibility
         "\0" ++ throwCryptoError (encrypt nonce key plaintext)
 
+-- | Show the list of files in the remote storage.
+runList :: IO ()
+runList = getConf f withArgs
+  where
+    f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
+    withArgs Conf{..} Session{..} = do
+        result <- runRead "ssh" [host, "ls", docdir]
+        case result of
+            Left c -> B.putStrLn (mconcat ["ssh ls failed. (", int c, ")"])
+                *> exitFailure
+            Right b -> B.putStrLn $ B.intercalate "\n" $
+                map (decryptFileName master . B64.decodeLenient) $ split b
+      where
+        (host, docdir) = sshHost (T.encodeUtf8 remote)
+        split = filter (/= "") . B.split '\n'
+
+-- utility functions
+
 withNoEcho :: IO a -> IO a
 withNoEcho action = do
     old <- hGetEcho stdin
@@ -236,3 +255,27 @@ tryRun cmd args successHandler failHandler = do
                 ExitFailure c -> failHandler c
             _ -> error $ show cmd
         Nothing -> error $ show cmd
+
+runRead :: RawFilePath -> [ByteString] -> IO (Either Int ByteString)
+runRead cmd args = do
+    (fd0, fd1) <- createPipe
+    pid <- forkProcess $ do
+        closeFd fd0
+        closeFd stdOutput
+        void $ dupTo fd1 stdOutput
+        executeFile cmd True args Nothing
+    closeFd fd1
+    content <- fdToHandle fd0 >>= B.hGetContents
+    getProcessStatus True False pid >>= \ mstatus -> case mstatus of
+        Just status -> case status of
+            Exited exitCode -> case exitCode of
+                ExitSuccess -> return $ Right content
+                ExitFailure c -> return $ Left c
+            _ -> error $ show cmd
+        Nothing -> error $ show cmd
+
+sshHost :: ByteString -> (ByteString, ByteString)
+sshHost b = (host, docdir)
+  where
+    (host, cDocdir) = B.break (== ':') b
+    docdir = if B.head cDocdir == ':' then B.tail cDocdir else cDocdir

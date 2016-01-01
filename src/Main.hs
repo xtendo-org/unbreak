@@ -18,6 +18,7 @@ data Cmd
     | CmdAdd
         Bool -- ^ force overwrite or not
         ByteString
+    | CmdList
     | CmdHelp
 
 modeInit :: Mode Cmd
@@ -44,10 +45,14 @@ modeAdd = mode "add" (CmdAdd False "") "encrypt a file and store it remotely"
     forceUpd (CmdAdd _ s) = CmdAdd True s
     forceUpd _ = undefined
 
+modeList :: Mode Cmd
+modeList = mode "list" CmdList "list the files in the remote storage"
+    (flagArg (\_ c -> Right c) "") []
+
 arguments :: Mode Cmd
 arguments = modes "unbreak" CmdHelp
     "remote, accessible, and encrypted file storage utility"
-    [modeInit, modeOpen, modeLogout, modeAdd]
+    [modeInit, modeOpen, modeLogout, modeAdd, modeList]
 
 main :: IO ()
 main = do
@@ -62,3 +67,4 @@ main = do
         CmdAdd f b  -> if B.length b == 0
             then error "file name can't be empty"
             else runAdd f b
+        CmdList     -> runList
