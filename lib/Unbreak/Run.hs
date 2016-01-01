@@ -33,6 +33,11 @@ import Unbreak.Format
 (++) :: Monoid m => m -> m -> m
 (++) = mappend
 
+data Session = Session
+    { shelfPath :: !ByteString
+    , master :: !ByteString
+    }
+
 sessionPath :: ByteString
 sessionPath = "/tmp/unbreak.session"
 
@@ -59,34 +64,34 @@ runInit = do
             confPath
 
 -- idempotent session
-session :: Conf -> IO (ByteString, ByteString)
+session :: Conf -> IO Session
 session Conf{..} = catchIOError
     -- get existing session
     ( do
-        shelfPath <- B.readFile sessionPath
-        master <- B.readFile (shelfPath ++ "/master")
-        return (shelfPath, master)
+        thisShelfPath <- B.readFile sessionPath
+        thisMaster <- B.readFile (thisShelfPath ++ "/thisMaster")
+        return $ Session thisShelfPath thisMaster
     )
     -- or if that fails, create a new session
     $ const $ do
-        shelfPath <- mkdtemp "/dev/shm/unbreak-"
-        B.writeFile sessionPath shelfPath
+        thisShelfPath <- mkdtemp "/dev/shm/unbreak-"
+        B.writeFile sessionPath thisShelfPath
         B.putStr "Type password: "
         password <- withNoEcho B.getLine <* B.putStrLn ""
-        let master = scrypt password (T.encodeUtf8 name)
-        B.writeFile (shelfPath ++ "/master") master
-        createDirectory (shelfPath ++ "/file") 0o700
-        return (shelfPath, master)
+        let thisMaster = scrypt password (T.encodeUtf8 name)
+        B.writeFile (thisShelfPath ++ "/thisMaster") thisMaster
+        createDirectory (thisShelfPath ++ "/file") 0o700
+        return $ Session thisShelfPath thisMaster
 
 -- | Given a filename, try copying the file from the remote to a temporary
 -- shared memory space, open it with the text editor specified in the config
 -- file, and copy it back to the remote. Shell command @scp@ must exist.
 runOpen :: ByteString -> IO ()
-runOpen filename = getConf f (`editRemoteFile` filename)
+runOpen filename = getConf f (editRemoteFile filename)
   where
     f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
 
-getConf :: (ByteString -> IO a) -> (Conf -> IO a) -> IO a
+getConf :: (ByteString -> IO a) -> (Conf -> Session -> IO a) -> IO a
 getConf failure success = do
     confPath <- (++ "/.unbreak.json") <$> getHomePath
     existence <- fileExist confPath
@@ -95,19 +100,13 @@ getConf failure success = do
         rawConf <- B.readFile confPath
         case dec rawConf of
             Left errmsg -> failure $ B.pack errmsg
-            Right conf -> success conf
+            Right conf -> session conf >>= success conf
     else do
         B.putStrLn "You may need to run 'unbreak init' first."
         failure "~/.unbreak.json does not exist"
 
-editRemoteFile :: Conf -> ByteString -> IO ()
-editRemoteFile conf@Conf{..} fileName = do
-    (shelfPath, master) <- session conf
-    let
-        encFileName = B64.encode $ encryptFileName master fileName
-        filePath = mconcat [shelfPath, "/file/", fileName]
-        encFilePath = mconcat [shelfPath, "/file/", encFileName]
-        remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
+editRemoteFile :: ByteString -> Conf -> Session -> IO ()
+editRemoteFile fileName Conf{..} Session{..} = do
     -- copy the remote file to the shelf
     tryRun "scp" [remoteFilePath, encFilePath]
         -- if there is a file, decrypt it
@@ -151,6 +150,11 @@ editRemoteFile conf@Conf{..} fileName = do
         removeLink encFilePath
     removeLink filePath
     B.putStrLn "Done."
+  where
+    encFileName = B64.encode $ encryptFileName master fileName
+    filePath = mconcat [shelfPath, "/file/", fileName]
+    encFilePath = mconcat [shelfPath, "/file/", encFileName]
+    remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
 
 runLogout :: IO ()
 runLogout = do
@@ -180,38 +184,31 @@ runAdd
     :: Bool -- ^ Force upload even when the file name already exists
     -> RawFilePath
     -> IO ()
-runAdd force filePath = getConf f (\ c -> encryptAndSend c force filePath)
+runAdd force filePath = getConf f (encryptAndSend force filePath)
   where
     f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
 
-encryptAndSend :: Conf -> Bool -> RawFilePath -> IO ()
-encryptAndSend conf@Conf{..} force filePath = do
-    (shelfPath, master) <- session conf
-    let
-        encFileName = B64.encode $ encryptFileName master fileName
-        encFilePath = mconcat [shelfPath, "/file/", encFileName]
-        remoteFilePath = mconcat [remoteB, encFileName]
-        action = do
-            encryptCopy master filePath encFilePath
-            -- upload the file from the shelf to the remote
-            run "scp" [encFilePath, remoteFilePath] $
-                \ n -> B.putStrLn $ mconcat
-                    ["Upload failed. (", B.pack $ show n, ")"]
-            -- cleanup: remove the local temporary file
-            removeLink encFilePath
-    if force then action
-    else tryRun "ssh" [host, "test", "-e", docdir ++ encFileName]
-        ( do
-            B.putStrLn
-                "The file name already exists in the storage. Cancelled."
-            exitFailure
-        )
-        $ const action
+encryptAndSend :: Bool -> RawFilePath -> Conf -> Session -> IO ()
+encryptAndSend force filePath Conf{..} Session{..} = if force then action else
+    tryRun "ssh" [host, "test", "-e", docdir ++ encFileName]
+        (B.putStrLn msg *> exitFailure) $ const action
   where
+    msg = "The file name already exists in the storage. Cancelled."
     (host, cDocdir) = B.break (== ':') remoteB
     docdir = if B.head cDocdir == ':' then B.tail cDocdir else cDocdir
     remoteB = T.encodeUtf8 remote
-    (_, fileName) = B.breakEnd (== '/') filePath
+    fileName = snd $ B.breakEnd (== '/') filePath
+    encFileName = B64.encode $ encryptFileName master fileName
+    encFilePath = mconcat [shelfPath, "/file/", encFileName]
+    remoteFilePath = remoteB ++ encFileName
+    action = do
+        encryptCopy master filePath encFilePath
+        -- upload the file from the shelf to the remote
+        run "scp" [encFilePath, remoteFilePath] $
+            \ n -> B.putStrLn $ mconcat
+                ["Upload failed. (", B.pack $ show n, ")"]
+        -- cleanup: remove the local temporary file
+        removeLink encFilePath
 
 encryptCopy :: ByteString -> RawFilePath -> RawFilePath -> IO ()
 encryptCopy key sourcePath targetPath = do
