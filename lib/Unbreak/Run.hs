@@ -101,7 +101,7 @@ getConf failure success = do
     then do
         rawConf <- B.readFile confPath
         case dec rawConf of
-            Left errmsg -> failure $ B.pack errmsg
+            Left errmsg -> failure $ str errmsg
             Right conf -> session conf >>= success conf
     else do
         B.putStrLn "You may need to run 'unbreak init' first."
@@ -116,7 +116,7 @@ editRemoteFile fileName Conf{..} Session{..} = do
             \ m -> case m of
             CryptoPassed plaintext -> B.writeFile filePath plaintext
             CryptoFailed e -> do
-                B.putStrLn $ "Decryption failed. " ++ B.pack (show e)
+                B.putStrLn $ "Decryption failed. " ++ str (show e)
                 exitFailure
         )
         -- or open a new file
@@ -139,7 +139,7 @@ editRemoteFile fileName Conf{..} Session{..} = do
             \ n -> do
                 B.putStrLn $ mconcat
                     [ "[!] Upload failed. ("
-                    , B.pack $ show n
+                    , int n
                     , ")\nYour file is at:\n\n\t"
                     , filePath
                     , "\n\nIf you want to retry upload, try:\n\n\t"
@@ -167,7 +167,7 @@ runLogout = do
             [ "Reading "
             , sessionPath
             , " has failed. ("
-            , B.pack $ show e
+            , str $ show e
             , ") Perhaps there is no active session?"
             ]
         exitFailure
@@ -176,7 +176,7 @@ runLogout = do
         [ "[!] Removing the session directory at "
         , shelfPath
         , " failed! ("
-        , B.pack $ show errorCode
+        , int errorCode
         , ") Please manually delete it."
         ]
     removeLink sessionPath
@@ -207,7 +207,7 @@ encryptAndSend force filePath Conf{..} Session{..} = if force then action else
         -- upload the file from the shelf to the remote
         run "scp" [encFilePath, remoteFilePath] $
             \ n -> B.putStrLn $ mconcat
-                ["Upload failed. (", B.pack $ show n, ")"]
+                ["Upload failed. (", int n, ")"]
         -- cleanup: remove the local temporary file
         removeLink encFilePath
 
