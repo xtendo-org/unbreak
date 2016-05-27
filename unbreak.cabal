@@ -46,16 +46,16 @@ library
     default-extensions: OverloadedStrings, RecordWildCards
     default-language:   Haskell2010
     build-depends:
-        aeson >= 0.9,
-        aeson-pretty >= 0.7,
+        aeson >= 0.11.2.0 && < 0.12,
+        aeson-pretty >= 0.7.2 && < 0.8,
         base64-bytestring == 1.*,
-        bytestring >= 0.10,
-        cereal >= 0.4,
-        cryptonite >= 0.9,
-        memory >= 0.10,
-        text == 1.*,
-        unix == 2.*,
-        base >=4.8 && <4.9
+        bytestring >= 0.10.8.1 && < 0.11,
+        cereal >= 0.5.1.0 && < 0.6,
+        cryptonite >= 0.15 && < 0.16,
+        memory >= 0.13 && < 0.14,
+        text >= 1.2.2.1 && < 2,
+        unix >= 2.7.2.0 && < 3,
+        base >=4.8 && <5
     ghc-options: -Wall -fwarn-incomplete-uni-patterns
 
 executable unbreak
@@ -66,6 +66,6 @@ executable unbreak
         bytestring >= 0.10,
         cmdargs >= 0.10,
         unbreak,
-        base >=4.8 && <4.9
-    ghc-options: -Wall -fwarn-incomplete-uni-patterns -O2 -threaded -static -optl-pthread -optl-static
+        base >=4.8 && <5
+    ghc-options: -Wall -fwarn-incomplete-uni-patterns -O2 -threaded -static
     default-language: Haskell2010
