@@ -20,7 +20,10 @@ dec :: FromJSON a => ByteString -> Either String a
 dec = eitherDecode . fromStrict
 
 encBase :: ToJSON a => [Text] -> a -> ByteString
-encBase keys = (toStrict .) $ encodePretty' $ Config 4 $ keyOrder keys
+encBase keys = (toStrict .) $ encodePretty' defConfig
+    { confIndent = Spaces 2
+    , confCompare = keyOrder keys
+    }
 
 -- a separate class for explicit ordering of JSON fields
 class EncodeJSON a where
