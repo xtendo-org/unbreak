@@ -4,7 +4,7 @@
 
 - Changed wrong error messages and improved existing messages.
 - Added necessary fields to unbreak.cabal.
-- Applied [wild](https://github.com/kinoru/wild).
+- Applied [wild](https://github.com/xtendo-org/wild).
 
 ## 0.3.0 - 2015-12-15
 

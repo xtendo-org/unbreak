@@ -1,7 +1,7 @@
 -- |
 -- Module       : Unbreak.Crypto
 -- License      : AGPL-3
--- Maintainer   : Kinoru
+-- Maintainer   : XT
 -- Stability    : Provisional
 -- Portability  : POSIX
 --

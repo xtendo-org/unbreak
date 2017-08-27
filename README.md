@@ -1,6 +1,6 @@
 **unbreak** is a tool that lets you have a secure and resilient remote file storage.
 
-Current version: **0.3.1** ([change log](https://github.com/kinoru/unbreak/blob/master/CHANGELOG.md))
+Current version: **0.3.1** ([change log](https://github.com/xtendo-org/unbreak/blob/master/CHANGELOG.md))
 
 unbreak is released under AGPL-3. Questions, bug reports, feature requests, and pull requests are highly welcome.
 
@@ -24,7 +24,7 @@ One binary file for x64 GNU/Linux.
 
 ```bash
 curl -L \
-    https://github.com/kinoru/unbreak/releases/download/v0.3.1/unbreak \
+    https://github.com/xtendo-org/unbreak/releases/download/v0.3.1/unbreak \
     > ~/.local/bin/unbreak \
     && chmod +x ~/.local/bin/unbreak
 ```
@@ -54,7 +54,7 @@ In other words, it will probably work on any ordinary x64 GNU/Linux distribution
 - [Stack](http://haskellstack.org/) is the recommended method to build the latest development version of unbreak.
 
 ```bash
-$ git clone --depth=1 https://github.com/kinoru/unbreak
+$ git clone --depth=1 https://github.com/xtendo-org/unbreak
 $ cd unbreak
 $ stack install
 ```

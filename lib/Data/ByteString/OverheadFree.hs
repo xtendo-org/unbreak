@@ -1,7 +1,7 @@
 -- |
 -- Module       : Data.ByteString.OverheadFree
 -- License      : AGPL-3
--- Maintainer   : Kinoru
+-- Maintainer   : XT
 -- Stability    : Temporary
 -- Portability  : POSIX
 --
