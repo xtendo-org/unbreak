@@ -24,7 +24,7 @@ One binary file for x64 GNU/Linux.
 
 ```bash
 curl -L \
-    https://github.com/xtendo-org/unbreak/releases/download/v0.3.1/unbreak \
+    https://github.com/xtendo-org/unbreak/releases/download/v0.4.0/unbreak \
     > ~/.local/bin/unbreak \
     && chmod +x ~/.local/bin/unbreak
 ```
