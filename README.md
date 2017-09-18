@@ -1,6 +1,6 @@
 **unbreak** is a tool that lets you have a secure and resilient remote file storage.
 
-Current version: **0.3.1** ([change log](https://github.com/xtendo-org/unbreak/blob/master/CHANGELOG.md))
+Current version: **0.4.0** ([change log](https://github.com/xtendo-org/unbreak/blob/master/CHANGELOG.md))
 
 unbreak is released under AGPL-3. Questions, bug reports, feature requests, and pull requests are highly welcome.
 

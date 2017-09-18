@@ -1,6 +1,6 @@
 # Change Log
 
-## 0.4 - 2017-08-27
+## 0.4.0 - 2017-08-27
 
 - Added "cat" command: prints out the file content, good for Unix pipe chaining
 
