@@ -9,12 +9,14 @@
 module Unbreak.Run
     ( runInit
     , runOpen
+    , runCat
     , runLogout
     , runAdd
     , runList
     ) where
 
 import Prelude hiding ((++))
+import Data.Maybe
 import Control.Monad
 import Control.Exception
 import System.IO
@@ -88,8 +90,8 @@ session Conf{..} = catchIOError
 -- | Given a filename, try copying the file from the remote to a temporary
 -- shared memory space, open it with the text editor specified in the config
 -- file, and copy it back to the remote. Shell command @scp@ must exist.
-runOpen :: ByteString -> IO ()
-runOpen filename = getConf f (editRemoteFile filename)
+runOpen :: Maybe ByteString -> ByteString -> IO ()
+runOpen program filename = getConf f (editRemoteFile program filename)
   where
     f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
 
@@ -107,8 +109,8 @@ getConf failure success = do
         B.putStrLn "You may need to run 'unbreak init' first."
         failure "~/.unbreak.json does not exist"
 
-editRemoteFile :: ByteString -> Conf -> Session -> IO ()
-editRemoteFile fileName Conf{..} Session{..} = do
+editRemoteFile :: Maybe ByteString -> ByteString -> Conf -> Session -> IO ()
+editRemoteFile program fileName Conf{..} Session{..} = do
     -- copy the remote file to the shelf
     tryRun "scp" [remoteFilePath, encFilePath]
         -- if there is a file, decrypt it
@@ -126,7 +128,7 @@ editRemoteFile fileName Conf{..} Session{..} = do
     -- record the current time
     before <- epochTime
     -- edit the file in the shelf
-    run (T.encodeUtf8 editor) [filePath] $ const $ do
+    run (fromMaybe (T.encodeUtf8 editor) program) [filePath] $ const $ do
         B.putStrLn "Editor exited abnormally. Editing cancelled."
         exitFailure
     -- check mtime to see if the file has been modified
@@ -157,6 +159,29 @@ editRemoteFile fileName Conf{..} Session{..} = do
     filePath = mconcat [shelfPath, "/file/", fileName]
     encFilePath = mconcat [shelfPath, "/file/", encFileName]
     remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
+
+
+runCat :: ByteString -> IO ()
+runCat fileName = getConf f (catRemoteFile fileName)
+  where
+    f errmsg = B.putStrLn ("Failed: " ++ errmsg) *> exitFailure
+
+
+catRemoteFile :: ByteString -> Conf -> Session -> IO ()
+catRemoteFile fileName Conf{..} Session{..} =
+    tryRun "scp" [remoteFilePath, encFilePath] successCase failCase
+  where
+    successCase = decrypt master <$> B.tail <$> B.readFile encFilePath >>=
+        \ m -> case m of
+        CryptoPassed plaintext -> B.putStr plaintext
+        CryptoFailed e -> do
+            B.putStrLn $ "Decryption failed. " ++ str (show e)
+            exitFailure
+    failCase _ = B.putStrLn "File not found." >> exitFailure
+    encFileName = B64.encode $ encryptFileName master fileName
+    encFilePath = mconcat [shelfPath, "/file/", encFileName]
+    remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
+
 
 runLogout :: IO ()
 runLogout = do

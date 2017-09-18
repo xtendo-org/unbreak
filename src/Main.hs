@@ -13,6 +13,7 @@ pack = LB.toStrict . B.toLazyByteString . B.stringUtf8
 
 data Cmd
     = CmdInit
+    | CmdCat ByteString
     | CmdOpen ByteString
     | CmdLogout
     | CmdAdd
@@ -49,10 +50,16 @@ modeList :: Mode Cmd
 modeList = mode "list" CmdList "list the files in the remote storage"
     (flagArg (\_ c -> Right c) "") []
 
+modeCat :: Mode Cmd
+modeCat = mode "cat" CmdList "print a remote encrypted file"
+    (flagArg argUpd "FILENAME") []
+  where
+    argUpd a _ = Right $ CmdCat (pack a)
+
 arguments :: Mode Cmd
 arguments = modes "unbreak" CmdHelp
     "remote, accessible, and encrypted file storage utility"
-    [modeInit, modeOpen, modeLogout, modeAdd, modeList]
+    [modeInit, modeOpen, modeLogout, modeAdd, modeList, modeCat]
 
 main :: IO ()
 main = do
@@ -60,9 +67,10 @@ main = do
     case args of
         CmdHelp     -> print $ helpText [] HelpFormatDefault arguments
         CmdInit     -> runInit
+        CmdCat b    -> runCat b
         CmdOpen b   -> if B.length b == 0
             then error "file name can't be empty"
-            else runOpen b
+            else runOpen Nothing b
         CmdLogout   -> runLogout
         CmdAdd f b  -> if B.length b == 0
             then error "file name can't be empty"
