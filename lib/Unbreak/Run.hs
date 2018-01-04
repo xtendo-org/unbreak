@@ -26,8 +26,9 @@ import System.Exit
 import System.Posix.ByteString
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.OverheadFree as B
 import qualified Data.ByteString.Base64.URL as B64
+import qualified Data.ByteString.OverheadFree as B
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 
 import Unbreak.Crypto
@@ -128,9 +129,11 @@ editRemoteFile program fileName Conf{..} Session{..} = do
     -- record the current time
     before <- epochTime
     -- edit the file in the shelf
-    run (fromMaybe (T.encodeUtf8 editor) program) [filePath] $ const $ do
-        B.putStrLn "Editor exited abnormally. Editing cancelled."
-        exitFailure
+    run (fromMaybe (T.encodeUtf8 editorCmd) program)
+        (map T.encodeUtf8 editorOpts ++ [filePath])
+        $ const $ do
+          B.putStrLn "Editor exited abnormally. Editing cancelled."
+          exitFailure
     -- check mtime to see if the file has been modified
     after <- modificationTime <$> getFileStatus filePath
     when (before < after) $ do
@@ -159,6 +162,9 @@ editRemoteFile program fileName Conf{..} Session{..} = do
     filePath = mconcat [shelfPath, "/file/", fileName]
     encFilePath = mconcat [shelfPath, "/file/", encFileName]
     remoteFilePath = mconcat [T.encodeUtf8 remote, encFileName]
+    (editorCmd, editorOpts) = case T.split (== ' ') editor of
+        [] -> ("vim", [])
+        x : xs -> (x, xs)
 
 
 runCat :: ByteString -> IO ()
