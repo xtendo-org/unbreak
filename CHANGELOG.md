@@ -1,6 +1,6 @@
 # Change Log
 
-## 0.5.0 - 2017-08-27
+## 0.5.0 - 2018-01-05
 
 - Added support for custom editor command line options. Before this, "editor" could only be a single command like `gedit`. With the support, "editor" can be `gedit -w`.
 
