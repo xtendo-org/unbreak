@@ -1,6 +1,6 @@
 **unbreak** is a tool that lets you have a secure and resilient remote file storage.
 
-Current version: **0.4.0** ([change log](https://github.com/xtendo-org/unbreak/blob/master/CHANGELOG.md))
+Current version: **0.5.0** ([change log](https://github.com/xtendo-org/unbreak/blob/master/CHANGELOG.md))
 
 unbreak is released under AGPL-3. Questions, bug reports, feature requests, and pull requests are highly welcome.
 
@@ -24,7 +24,7 @@ One binary file for x64 GNU/Linux.
 
 ```bash
 curl -L \
-    https://github.com/xtendo-org/unbreak/releases/download/v0.4.0/unbreak \
+    https://github.com/xtendo-org/unbreak/releases/download/v0.5.0/unbreak \
     > ~/.local/bin/unbreak \
     && chmod +x ~/.local/bin/unbreak
 ```

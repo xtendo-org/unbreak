@@ -1,5 +1,5 @@
 name:               unbreak
-version:            0.4.0
+version:            0.5.0
 synopsis:           Secure and resilient remote file storage utility
 description:
     unbreak is a secure remote file storage utility written in Haskell.
